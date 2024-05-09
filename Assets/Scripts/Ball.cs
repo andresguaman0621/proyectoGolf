@@ -7,121 +7,214 @@ using UnityEngine;
 
 public class Ball : MonoBehaviour
 {
-    private Camera mainCam;
-    private GameObject putter;
+
     
-    private Rigidbody rb;
-    private Vector3 originPosition;
-    private Vector3 oldPosition;
+    
+    [SerializeField] private float someThreshold = 0.2f;
 
-    public float AbsHorizonMagnitude;
-    public float Speed = 0.05f;
+    //variable for control the turns
+    public ShotsRemainSystem shotsRemainSystem;
 
-    // Start is called before the first frame update
+    //variables for follow camera
+    private Camera mainCam;
+    private float camZoomLevel;
+    private Vector2 camRotationValues;
+
+
+    //variables for handle control ball
+    [SerializeField] private float shotPower;
+    [SerializeField] private float stopVelocity = .05f;
+    [SerializeField] private LineRenderer lineRenderer;
+    public bool isIdle;
+    private bool isAiming;
+    private Rigidbody rigidbody;
+
+
+
+    [SerializeField] public AudioSource respawnAudio;
+    [SerializeField] public AudioSource newTurnAudio;
+
+    public Transform respawnPoint;
+
+
+
+    // Start is called before the first fraime update
     void Start()
     {
         mainCam = GameObject.Find("Main Camera").GetComponent<Camera>();
-        putter = GameObject.Find("Putter");
-        rb=GetComponent<Rigidbody>();
-        originPosition = transform.position;    
-        oldPosition = originPosition;   
+        camZoomLevel = (mainCam.transform.position - transform.position).magnitude;
+        camRotationValues = new Vector2(mainCam.transform.eulerAngles.x, mainCam.transform.eulerAngles.y);
+        rigidbody = GetComponent<Rigidbody>();
+
     }
+
+   
 
     // Update is called once per frame
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.W))
-        {
-            //+X
-            rb.AddForce(new Vector3(Speed, 0,0));
-        }
-
-        if (Input.GetKeyDown(KeyCode.S))
-        {
-            //-X
-            rb.AddForce(new Vector3(-Speed, 0, 0));
-        }
-
-        if (Input.GetKeyDown(KeyCode.A))
-        {
-            //+Z
-            rb.AddForce(new Vector3(0,0, Speed));
-        }
-
-        if (Input.GetKeyDown(KeyCode.D))
-        {
-            //-Z
-            rb.AddForce(new Vector3(0, 0, -Speed));
-        }
-
         if (Input.GetKeyDown(KeyCode.Space) || transform.position.y < -10)
         {
-            transform.position = originPosition;
-            rb.velocity = new Vector3();
-            rb.angularVelocity = new Vector3();
-        }
-        //Slow down    
-        AbsHorizonMagnitude = Mathf.Abs(rb.velocity.x) + Mathf.Abs(rb.velocity.z);
+            transform.position = respawnPoint.position;
+            respawnAudio.Play();
 
-        UpdatePutterPosition();
+            rigidbody.velocity = Vector3.zero;
+            rigidbody.angularVelocity = Vector3.zero;
+        }
+
+        if (rigidbody.velocity.magnitude < stopVelocity)
+        {
+            Stop();
+        }
+
+        
+        //aiming process (changed from fixedupdate to update beacuase it was affecting the shoot)
+        ProcessAim();
 
         UpdateCamera();
 
-        oldPosition = transform.position;   
 
     }
 
+
+    private void Awake()
+    {
+        rigidbody = GetComponent<Rigidbody>();
+
+        isAiming = false;
+        lineRenderer.enabled = false;
+        
+
+    }
+
+    //update camera when shoot
     private void UpdateCamera()
     {
+
         //Rotate camera 
         if (Input.GetMouseButton(1))
         {
-            mainCam.transform.RotateAround(transform.position,
-                                            mainCam.transform.up,
-                                            -Input.GetAxis("Mouse X") * 3f);
-
-            mainCam.transform.RotateAround(transform.position,
-                                            mainCam.transform.right,
-                                            -Input.GetAxis("Mouse Y") * 3f);
-            mainCam.transform.eulerAngles = new Vector3
-                (
-                    mainCam.transform.eulerAngles.x,
-                    mainCam.transform.eulerAngles.y,
-                    0
-                );
+            var mouseMovement = new Vector2(-Input.GetAxis("Mouse Y") * 3f, Input.GetAxis("Mouse X") * 3f);
+            camRotationValues += mouseMovement * Time.unscaledDeltaTime * 300f;
         }
 
-        //Follow camera
-        mainCam.transform.Translate(transform.position - oldPosition, Space.World);
-        //mainCam.transform.position = transform.position - camZoomOffset;
+        //Follow camera player
+        var curRotation = Quaternion.Euler(new Vector3(Mathf.Clamp(camRotationValues.x, -80f, 80f), camRotationValues.y, 0));
+        var lookDirection = curRotation * Vector3.forward;
+        var lookPosition = transform.position - lookDirection * camZoomLevel;
+        mainCam.transform.SetPositionAndRotation(lookPosition, curRotation);
+
     }
 
-    private void UpdatePutterPosition()
+    
+
+    private void OnMouseDown()
     {
-        float putterDistanceAway = 0.7f;
-
-        //Figure out the angle from the ball to the cursor
-        var ray = mainCam.ScreenPointToRay(Input.mousePosition);
-        var putterLayer = 1 << LayerMask.NameToLayer("PutterCollider");
-
-        if (Physics.Raycast(ray.origin, ray.direction, out var hitInfo, 10, putterLayer)
-            && Vector3.Distance(transform.position, hitInfo.point) > 0.3f)
+        if (isIdle)
         {
-            Debug.DrawLine(ray.origin, hitInfo.point);
+            isAiming = true;
 
-            float deltaY = hitInfo.point.y - transform.position.y;
-            float deltaX = hitInfo.point.x - transform.position.x;
-            float angle = Mathf.Atan2(deltaY, deltaX) * 180 / Mathf.PI;
-            angle *= hitInfo.point.z < transform.position.z ? -1 : 1;
+        }
 
-            Debug.Log(angle);
-            //Move putter to distance from ball based on found angle
-            var newPoint = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad), 0, Mathf.Sin(angle * Mathf.Deg2Rad));
-            putter.transform.position = transform.position + (newPoint * putterDistanceAway);
-            
+    }
+
+    private void ProcessAim()
+    {
+        if (!isAiming || !isIdle)
+        {
+            return;
+        }
+
+        Vector3? worldPoint = CastMouseClickRay();
+
+        if (!worldPoint.HasValue)
+        {
+            return;
+        }
+
+        DrawLine(worldPoint.Value);
+
+        if (Input.GetMouseButtonUp(0))
+        {
+
+            Shoot(worldPoint.Value);
         }
 
 
+    }
+
+
+    private void Shoot(Vector3 worldPoint)
+    {
+        
+        isAiming = false;
+        lineRenderer.enabled = false;
+
+        Vector3 horizontalWorldPoint = new Vector3(worldPoint.x, transform.position.y, worldPoint.z);
+
+        Vector3 direction = (horizontalWorldPoint - transform.position).normalized;
+        float strength = Vector3.Distance(transform.position, horizontalWorldPoint);
+
+        rigidbody.AddForce(direction * strength * shotPower);
+        isIdle = false;
+        
+        //validate minimum movement to consider a shot
+        if (Vector3.Distance(transform.position, horizontalWorldPoint) > someThreshold)
+        {
+            shotsRemainSystem.DecreaseMovements();
+
+        }
+        //shotsRemainSystem.DecreaseMovements();
 
     }
+
+
+    private void DrawLine(Vector3 wordlPoint)
+    {
+
+        Vector3[] positions = {
+            transform.position,
+            wordlPoint};
+        lineRenderer.SetPositions(positions);
+        lineRenderer.enabled = true;
+
+    }
+
+    private void Stop()
+    {
+
+        rigidbody.velocity = Vector3.zero;
+        rigidbody.angularVelocity = Vector3.zero;
+        isIdle = true;
+
+        
+    }
+
+
+    private Vector3? CastMouseClickRay()
+    {
+        Vector3 screenMousePosFar = new Vector3(
+            Input.mousePosition.x,
+            Input.mousePosition.y,
+            Camera.main.farClipPlane);
+        Vector3 screenMousePosNear = new Vector3(
+            Input.mousePosition.x,
+            Input.mousePosition.y,
+            Camera.main.nearClipPlane);
+        Vector3 worldMousePosFar = Camera.main.ScreenToWorldPoint(screenMousePosFar);
+        Vector3 worldMousePosNear = Camera.main.ScreenToWorldPoint(screenMousePosNear);
+        RaycastHit hit;
+        if (Physics.Raycast(worldMousePosNear, worldMousePosFar - worldMousePosNear, out hit, float.PositiveInfinity))
+        {
+            return hit.point;
+        }
+        else
+        {
+            return null;
+        }
+
+        
+    }
+
 }
+
