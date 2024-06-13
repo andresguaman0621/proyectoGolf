@@ -8,15 +8,21 @@ public class ShotsRemainSystem : MonoBehaviour
 
     [SerializeField] public GameObject menuGameOver;
     [SerializeField] public GameObject wonMenu;
-    public int remainingShots = 3;
+    public int remainingShots;
     public Text shotsText;
-    public bool hasWon = false; 
+    public bool hasWon = false;
 
+
+    public int yellowCoinsCollected = 0; // Contador de monedas amarillas recolectadas
+    public Text yellowCoinText; // Referencia al texto del canvas para mostrar el contador
+    public float powerUpDuration = 3f;
+
+    //BALL
 
     void Start()
     {
         TextUpdate();
-        remainingShots = 3;
+        //remainingShots;
         
 
     }
@@ -55,6 +61,25 @@ public class ShotsRemainSystem : MonoBehaviour
         }
     }
 
+
+
+    public void IncreaseYellowCoinCount()
+    {
+        yellowCoinsCollected++;
+        UpdateYellowCoinText();
+    }
+
+    public void UpdateYellowCoinText()
+    {
+        yellowCoinText.text = "Yellow Coins: " + yellowCoinsCollected;
+    }
+
+
+    public void IncreaseMovements()
+    {
+        remainingShots++;
+        TextUpdate();
+    }
 }
 
 

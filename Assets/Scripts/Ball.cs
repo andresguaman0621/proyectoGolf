@@ -5,6 +5,7 @@ using System.Net.NetworkInformation;
 using Unity.VisualScripting;
 using UnityEngine;
 
+
 public class Ball : MonoBehaviour
 {
 
@@ -23,7 +24,7 @@ public class Ball : MonoBehaviour
 
     //variables for handle control ball
     [SerializeField] private float shotPower;
-    [SerializeField] private float stopVelocity = .05f;
+    [SerializeField] private float stopVelocity = .005f;
     [SerializeField] private LineRenderer lineRenderer;
     public bool isIdle;
     private bool isAiming;
@@ -32,10 +33,19 @@ public class Ball : MonoBehaviour
 
 
     [SerializeField] public AudioSource respawnAudio;
-    [SerializeField] public AudioSource newTurnAudio;
+    
 
     public Transform respawnPoint;
+    
+    //NUEVO VARIABLES
 
+    public float moveSpeed = 1.5f; // Velocidad de movimiento de la pelota
+    public float powerUpDuration = 3f; // Duración del PowerUp
+
+    private bool isPowerUpActive = false;
+    private float powerUpTimer;
+
+    //NUEVO
 
 
     // Start is called before the first fraime update
@@ -46,6 +56,7 @@ public class Ball : MonoBehaviour
         camRotationValues = new Vector2(mainCam.transform.eulerAngles.x, mainCam.transform.eulerAngles.y);
         rigidbody = GetComponent<Rigidbody>();
 
+        
     }
 
    
@@ -64,16 +75,29 @@ public class Ball : MonoBehaviour
 
         if (rigidbody.velocity.magnitude < stopVelocity)
         {
+            
             Stop();
         }
 
-        
+        //NUEVO
+        if (isPowerUpActive)
+        {
+            MoveBallWithKeys();
+            powerUpTimer -= Time.deltaTime;
+            if (powerUpTimer <= 0f)
+            {
+                isPowerUpActive = false;
+            }
+        }
+
+        //NUEVO
+
         //aiming process (changed from fixedupdate to update beacuase it was affecting the shoot)
         ProcessAim();
 
         UpdateCamera();
 
-
+        
     }
 
 
@@ -186,6 +210,7 @@ public class Ball : MonoBehaviour
         rigidbody.velocity = Vector3.zero;
         rigidbody.angularVelocity = Vector3.zero;
         isIdle = true;
+        
 
         
     }
@@ -216,5 +241,23 @@ public class Ball : MonoBehaviour
         
     }
 
+
+    //NUEVO
+    public void ActivatePowerUp()
+    {
+        isPowerUpActive = true;
+        powerUpTimer = powerUpDuration;
+    }
+
+    private void MoveBallWithKeys()
+    {
+
+        float moveHorizontal = Input.GetAxis("Horizontal");
+        float moveVertical = Input.GetAxis("Vertical");
+
+        Vector3 movement = new Vector3(moveHorizontal, 0f, moveVertical);
+        rigidbody.AddForce(movement*moveSpeed, ForceMode.Force);
+    }
+    //NUEVO
 }
 

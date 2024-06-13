@@ -16,9 +16,11 @@ public class GameOverMenu : MonoBehaviour
     {
         SceneManager.LoadScene(name);
     }
-    
+
 
 
     //kind of pause the game, make tests
     //UnityEditor.EditorApplication.isPlaying = false;
+
+ 
 }

@@ -28,4 +28,8 @@ public class WonMenu : MonoBehaviour
         movementsText.text = "Remaining shots: " + shotsRemainSystem.remainingShots;
 
     }
+    public void NextLevel(string sceneName)
+    {
+        SceneManager.LoadScene(sceneName);
+    }
 }
